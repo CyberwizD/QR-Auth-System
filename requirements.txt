@@ -1,4 +1,6 @@
 streamlit
 qrcode
+base64
+logging
 cv2
 pyzbar
