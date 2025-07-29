@@ -1,0 +1,4 @@
+streamlit
+qrcode
+cv2
+pyzbar
