@@ -1,6 +1,12 @@
-streamlit
-qrcode
-base64
-logging
-cv2
-pyzbar
+# streamlit
+# qrcode
+# base64
+# logging
+# cv2
+# pyzbar
+
+streamlit==1.28.1
+requests==2.31.0
+websocket-client==1.6.4
+pillow==10.1.0
+threading2==0.1.3
