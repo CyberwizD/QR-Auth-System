@@ -8,8 +8,12 @@ from datetime import datetime, timedelta
 import base64
 from PIL import Image
 import io
-import asyncio
-import streamlit.components.v1 as components
+import queue
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Configuration
 API_BASE_URL = "http://localhost:8000"
@@ -229,15 +233,6 @@ def load_custom_css():
         box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
     }
     
-    /* Sidebar Styles */
-    .css-1d391kg {
-        background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
-    }
-    
-    .css-1d391kg .css-1v0mbdj {
-        color: white;
-    }
-    
     /* Loading Animation */
     .loading-spinner {
         display: inline-block;
@@ -254,35 +249,26 @@ def load_custom_css():
         0% { transform: rotate(0deg); }
         100% { transform: rotate(360deg); }
     }
-    
-    /* Responsive Design */
-    @media (max-width: 768px) {
-        .app-title {
-            font-size: 2rem;
-        }
-        
-        .qr-container {
-            padding: 1rem;
-        }
-        
-        .dashboard-container {
-            padding: 1rem;
-        }
-    }
     </style>
     """, unsafe_allow_html=True)
 
-# WebSocket Client Class
+# WebSocket Client Class with IMPROVED message handling
 class WebSocketClient:
-    def __init__(self):
+    def __init__(self, message_queue):
         self.ws = None
         self.connected = False
         self.session_id = None
+        self.message_queue = message_queue
+        self.running = False
+        self.connection_thread = None
         
     def connect(self, session_id):
         try:
             self.session_id = session_id
+            self.running = True
             ws_url = f"{WS_BASE_URL}/ws/{session_id}"
+            logger.info(f"🔌 Connecting to WebSocket: {ws_url}")
+            
             self.ws = websocket.WebSocketApp(
                 ws_url,
                 on_message=self.on_message,
@@ -293,49 +279,95 @@ class WebSocketClient:
             
             # Run in separate thread
             def run_ws():
-                self.ws.run_forever()
+                try:
+                    self.ws.run_forever(ping_interval=30, ping_timeout=10)
+                except Exception as e:
+                    logger.error(f"❌ WebSocket run_forever error: {e}")
             
-            ws_thread = threading.Thread(target=run_ws, daemon=True)
-            ws_thread.start()
+            self.connection_thread = threading.Thread(target=run_ws, daemon=True)
+            self.connection_thread.start()
             
         except Exception as e:
-            st.error(f"WebSocket connection error: {str(e)}")
+            logger.error(f"❌ WebSocket connection error: {str(e)}")
+            self.message_queue.put({"type": "error", "message": str(e)})
     
     def on_open(self, ws):
         self.connected = True
-        if 'ws_status' not in st.session_state:
-            st.session_state.ws_status = "Connected"
+        logger.info("✅ WebSocket connected successfully")
+        self.message_queue.put({"type": "ws_connected", "message": "WebSocket connected"})
+        
+        # Send a ping to keep connection alive
+        try:
+            ws.send("ping")
+        except Exception as e:
+            logger.error(f"❌ Error sending initial ping: {e}")
     
     def on_message(self, ws, message):
         try:
-            data = json.loads(message)
-            if data.get('type') == 'login_success':
-                st.session_state.login_data = data
-                st.session_state.login_success = True
-                st.session_state.user_data = data.get('user')
-                st.session_state.session_token = data.get('session_token')
-                st.rerun()
+            logger.info(f"📨 WebSocket message received: {message}")
+            
+            # Handle echo and ping messages
+            if message.startswith("Echo:") or message == "pong":
+                return
+                
+            # Try to parse as JSON
+            try:
+                data = json.loads(message)
+                logger.info(f"📨 Parsed WebSocket data: {data}")
+                
+                if data.get('type') == 'login_success':
+                    logger.info("🎉 Login success message received!")
+                    self.message_queue.put({
+                        "type": "login_success",
+                        "user_data": data.get('user'),
+                        "session_token": data.get('session_token'),
+                        "device_id": data.get('device_id')
+                    })
+                elif data.get('type') == 'connected':
+                    logger.info("🔌 WebSocket connection confirmed")
+                    self.message_queue.put({"type": "ws_confirmed", "message": "Connection confirmed"})
+                else:
+                    self.message_queue.put(data)
+            except json.JSONDecodeError:
+                # Handle plain text messages
+                logger.info(f"📨 Plain text message: {message}")
+                self.message_queue.put({"type": "message", "content": message})
+                
         except Exception as e:
-            print(f"Error processing WebSocket message: {e}")
+            logger.error(f"❌ Error processing WebSocket message: {e}")
     
     def on_error(self, ws, error):
-        st.session_state.ws_status = f"Error: {error}"
+        logger.error(f"❌ WebSocket error: {error}")
+        self.message_queue.put({"type": "error", "message": str(error)})
     
     def on_close(self, ws, close_status_code, close_msg):
         self.connected = False
-        st.session_state.ws_status = "Disconnected"
+        self.running = False
+        logger.info(f"🔌 WebSocket closed: {close_status_code} - {close_msg}")
+        self.message_queue.put({"type": "disconnected", "code": close_status_code, "message": close_msg})
+
+    def disconnect(self):
+        self.running = False
+        if self.ws:
+            try:
+                self.ws.close()
+            except Exception as e:
+                logger.error(f"❌ Error closing WebSocket: {e}")
 
 # API Functions
 def generate_qr_session():
     try:
+        logger.info("🎯 Generating QR session...")
         response = requests.post(f"{API_BASE_URL}/qr/generate", json={})
         if response.status_code == 200:
-            return response.json()
+            data = response.json()
+            logger.info(f"✅ QR session generated: {data['session_id']}")
+            return data
         else:
-            st.error(f"Failed to generate QR code: {response.text}")
+            logger.error(f"❌ Failed to generate QR code: {response.text}")
             return None
     except Exception as e:
-        st.error(f"Connection error: {str(e)}")
+        logger.error(f"❌ Connection error: {str(e)}")
         return None
 
 def get_user_devices(token):
@@ -379,10 +411,15 @@ def render_qr_login_page():
     
     with col2:
         if st.button("🔄 Generate New QR Code", use_container_width=True):
-            st.session_state.qr_data = None
-            st.session_state.login_success = False
-            st.session_state.ws_client = None
+            # Clear existing data
+            for key in ['qr_data', 'ws_client', 'message_queue', 'login_success', 'user_data', 'session_token', 'ws_connected', 'ws_confirmed']:
+                if key in st.session_state:
+                    del st.session_state[key]
             st.rerun()
+    
+    # Initialize message queue if not exists
+    if 'message_queue' not in st.session_state:
+        st.session_state.message_queue = queue.Queue()
     
     # Generate QR code if not exists
     if 'qr_data' not in st.session_state or st.session_state.qr_data is None:
@@ -391,12 +428,21 @@ def render_qr_login_page():
             if qr_data:
                 st.session_state.qr_data = qr_data
                 st.session_state.login_success = False
+                st.session_state.ws_connected = False
+                st.session_state.ws_confirmed = False
                 
                 # Initialize WebSocket connection
-                ws_client = WebSocketClient()
+                logger.info("🔌 Initializing WebSocket connection...")
+                ws_client = WebSocketClient(st.session_state.message_queue)
                 ws_client.connect(qr_data['session_id'])
                 st.session_state.ws_client = ws_client
+                
+                # Wait a moment for connection
+                time.sleep(1)
                 st.rerun()
+            else:
+                st.error("❌ Failed to generate QR code. Please check your server connection.")
+                return
     
     if 'qr_data' in st.session_state and st.session_state.qr_data:
         qr_data = st.session_state.qr_data
@@ -407,29 +453,88 @@ def render_qr_login_page():
             st.markdown('<div class="qr-code-wrapper">', unsafe_allow_html=True)
             
             # Decode base64 QR code
-            qr_image_data = base64.b64decode(qr_data['qr_code_data'])
-            qr_image = Image.open(io.BytesIO(qr_image_data))
-            st.image(qr_image, width=300)
+            try:
+                qr_image_data = base64.b64decode(qr_data['qr_code_data'])
+                qr_image = Image.open(io.BytesIO(qr_image_data))
+                st.image(qr_image, width=300)
+            except Exception as e:
+                st.error(f"❌ Error displaying QR code: {e}")
+                return
             
             st.markdown('</div>', unsafe_allow_html=True)
         
+        # Process WebSocket messages - IMPROVED VERSION
+        messages_processed = 0
+        max_messages_per_cycle = 10  # Prevent infinite loops
+        
+        try:
+            while not st.session_state.message_queue.empty() and messages_processed < max_messages_per_cycle:
+                message = st.session_state.message_queue.get_nowait()
+                messages_processed += 1
+                logger.info(f"📨 Processing message #{messages_processed} from queue: {message}")
+                
+                message_type = message.get('type')
+                
+                if message_type == 'login_success':
+                    logger.info("🎉 Login success detected, updating session state...")
+                    st.session_state.login_success = True
+                    st.session_state.user_data = message.get('user_data')
+                    st.session_state.session_token = message.get('session_token')
+                    st.session_state.device_id = message.get('device_id')
+                    
+                    # Show success message and redirect
+                    st.success("🎉 Login successful! Redirecting to dashboard...")
+                    time.sleep(2)
+                    st.rerun()
+                    
+                elif message_type == 'ws_connected':
+                    st.session_state.ws_connected = True
+                    logger.info("🔌 WebSocket connection status updated")
+                    
+                elif message_type == 'ws_confirmed':
+                    st.session_state.ws_confirmed = True
+                    logger.info("🔌 WebSocket connection confirmed")
+                    
+                elif message_type == 'error':
+                    st.error(f"❌ WebSocket Error: {message.get('message')}")
+                    
+                elif message_type == 'disconnected':
+                    st.session_state.ws_connected = False
+                    st.warning("🔌 WebSocket disconnected. Attempting to reconnect...")
+                    
+        except queue.Empty:
+            pass
+        except Exception as e:
+            logger.error(f"❌ Error processing messages: {e}")
+        
         # Display status
-        expires_at = datetime.fromisoformat(qr_data['expires_at'].replace('Z', '+00:00'))
-        time_left = expires_at - datetime.now()
+        expires_at = datetime.fromisoformat(qr_data['expires_at'])
+        time_left = expires_at - datetime.utcnow()
         
         if time_left.total_seconds() > 0:
             minutes_left = int(time_left.total_seconds() // 60)
             seconds_left = int(time_left.total_seconds() % 60)
             
+            # Enhanced WebSocket status
+            ws_status = "❌ Disconnected"
+            if st.session_state.get('ws_connected', False):
+                if st.session_state.get('ws_confirmed', False):
+                    ws_status = "✅ Connected & Ready"
+                else:
+                    ws_status = "🔄 Connected (Confirming...)"
+            elif hasattr(st.session_state, 'ws_client'):
+                ws_status = "🔄 Connecting..."
+            
             st.markdown(f"""
             <div class="status-waiting">
                 <div class="loading-spinner"></div>
-                Waiting for mobile scan... Expires in {minutes_left}m {seconds_left}s
+                Waiting for mobile scan... ({ws_status}) <br>
+                Expires in {minutes_left}m {seconds_left}s
             </div>
             """, unsafe_allow_html=True)
             
-            # Auto-refresh every 5 seconds
-            time.sleep(5)
+            # Auto-refresh every 2 seconds (faster for better UX)
+            time.sleep(2)
             st.rerun()
         else:
             st.markdown("""
@@ -441,6 +546,8 @@ def render_qr_login_page():
 def render_dashboard():
     user_data = st.session_state.user_data
     session_token = st.session_state.session_token
+    
+    logger.info(f"🎯 Rendering dashboard for user: {user_data}")
     
     # Welcome Card
     st.markdown(f"""
@@ -552,14 +659,17 @@ def render_dashboard():
     with col2:
         if st.button("📱 Link New Device", use_container_width=True):
             # Reset to QR generation
-            st.session_state.qr_data = None
-            st.session_state.login_success = False
-            st.session_state.user_data = None
-            st.session_state.session_token = None
+            for key in ['qr_data', 'ws_client', 'message_queue', 'login_success', 'user_data', 'session_token', 'ws_connected', 'ws_confirmed']:
+                if key in st.session_state:
+                    del st.session_state[key]
             st.rerun()
     
     with col3:
         if st.button("🚪 Logout", use_container_width=True):
+            # Disconnect WebSocket
+            if hasattr(st.session_state, 'ws_client') and st.session_state.ws_client:
+                st.session_state.ws_client.disconnect()
+            
             # Clear session
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
@@ -584,28 +694,36 @@ def main():
     # Render header
     render_header()
     
+    # Debug info - enhanced for better troubleshooting
+    if st.checkbox("🔍 Debug Info", value=False):
+        st.write("**Session State:**")
+        debug_state = {}
+        for key, value in st.session_state.items():
+            if key == 'message_queue':
+                debug_state[key] = f"Queue with {value.qsize()} messages" if hasattr(value, 'qsize') else "Queue object"
+            elif key == 'ws_client':
+                if hasattr(value, 'connected'):
+                    debug_state[key] = f"WebSocket client (connected: {value.connected})"
+                else:
+                    debug_state[key] = "WebSocket client object"
+            else:
+                debug_state[key] = value
+        
+        st.json(debug_state)
+        
+        # WebSocket diagnostics
+        if hasattr(st.session_state, 'ws_client'):
+            st.write("**WebSocket Status:**")
+            ws = st.session_state.ws_client
+            st.write(f"- Connected: {ws.connected}")
+            st.write(f"- Running: {ws.running}")
+            st.write(f"- Session ID: {ws.session_id}")
+    
     # Check login status
-    if st.session_state.login_success and 'user_data' in st.session_state:
+    if st.session_state.login_success and 'user_data' in st.session_state and st.session_state.user_data:
         render_dashboard()
     else:
         render_qr_login_page()
-    
-    # Check if login was successful via WebSocket
-    if 'login_success' in st.session_state and st.session_state.login_success:
-        if 'user_data' not in st.session_state and 'login_data' in st.session_state:
-            login_data = st.session_state.login_data
-            st.session_state.user_data = login_data.get('user')
-            st.session_state.session_token = login_data.get('session_token')
-            
-            # Show success message
-            st.markdown("""
-            <div class="status-success">
-                🎉 Login successful! Welcome to your dashboard.
-            </div>
-            """, unsafe_allow_html=True)
-            
-            time.sleep(2)
-            st.rerun()
 
 if __name__ == "__main__":
     main()
