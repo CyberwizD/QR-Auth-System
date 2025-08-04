@@ -695,29 +695,29 @@ def main():
     render_header()
     
     # Debug info - enhanced for better troubleshooting
-    if st.checkbox("🔍 Debug Info", value=False):
-        st.write("**Session State:**")
-        debug_state = {}
-        for key, value in st.session_state.items():
-            if key == 'message_queue':
-                debug_state[key] = f"Queue with {value.qsize()} messages" if hasattr(value, 'qsize') else "Queue object"
-            elif key == 'ws_client':
-                if hasattr(value, 'connected'):
-                    debug_state[key] = f"WebSocket client (connected: {value.connected})"
-                else:
-                    debug_state[key] = "WebSocket client object"
-            else:
-                debug_state[key] = value
+    # if st.checkbox("🔍 Debug Info", value=False):
+    #     st.write("**Session State:**")
+    #     debug_state = {}
+    #     for key, value in st.session_state.items():
+    #         if key == 'message_queue':
+    #             debug_state[key] = f"Queue with {value.qsize()} messages" if hasattr(value, 'qsize') else "Queue object"
+    #         elif key == 'ws_client':
+    #             if hasattr(value, 'connected'):
+    #                 debug_state[key] = f"WebSocket client (connected: {value.connected})"
+    #             else:
+    #                 debug_state[key] = "WebSocket client object"
+    #         else:
+    #             debug_state[key] = value
         
-        st.json(debug_state)
+    #     st.json(debug_state)
         
-        # WebSocket diagnostics
-        if hasattr(st.session_state, 'ws_client'):
-            st.write("**WebSocket Status:**")
-            ws = st.session_state.ws_client
-            st.write(f"- Connected: {ws.connected}")
-            st.write(f"- Running: {ws.running}")
-            st.write(f"- Session ID: {ws.session_id}")
+    #     # WebSocket diagnostics
+    #     if hasattr(st.session_state, 'ws_client'):
+    #         st.write("**WebSocket Status:**")
+    #         ws = st.session_state.ws_client
+    #         st.write(f"- Connected: {ws.connected}")
+    #         st.write(f"- Running: {ws.running}")
+    #         st.write(f"- Session ID: {ws.session_id}")
     
     # Check login status
     if st.session_state.login_success and 'user_data' in st.session_state and st.session_state.user_data:
