@@ -15,9 +15,9 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Configuration
-API_BASE_URL = "http://localhost:8000"
-WS_BASE_URL = "ws://localhost:8000"
+# Configuration - FIXED WebSocket URL
+API_BASE_URL = "https://qr-auth-server.onrender.com"  # Removed trailing slash
+WS_BASE_URL = "wss://qr-auth-server.onrender.com"      # Changed to wss:// for secure WebSocket
 
 # Custom CSS for beautiful UI
 def load_custom_css():
@@ -252,7 +252,7 @@ def load_custom_css():
     </style>
     """, unsafe_allow_html=True)
 
-# WebSocket Client Class with IMPROVED message handling
+# WebSocket Client Class with IMPROVED connection handling
 class WebSocketClient:
     def __init__(self, message_queue):
         self.ws = None
@@ -261,16 +261,25 @@ class WebSocketClient:
         self.message_queue = message_queue
         self.running = False
         self.connection_thread = None
+        self.reconnect_attempts = 0
+        self.max_reconnect_attempts = 5
         
     def connect(self, session_id):
         try:
             self.session_id = session_id
             self.running = True
+            self.reconnect_attempts = 0
             ws_url = f"{WS_BASE_URL}/ws/{session_id}"
             logger.info(f"🔌 Connecting to WebSocket: {ws_url}")
             
+            # Add headers for better compatibility with hosted services
+            headers = {
+                'User-Agent': 'StreamlitWebSocketClient/1.0'
+            }
+            
             self.ws = websocket.WebSocketApp(
                 ws_url,
+                header=headers,
                 on_message=self.on_message,
                 on_error=self.on_error,
                 on_close=self.on_close,
@@ -280,9 +289,19 @@ class WebSocketClient:
             # Run in separate thread
             def run_ws():
                 try:
-                    self.ws.run_forever(ping_interval=30, ping_timeout=10)
+                    # Increased ping interval for better stability on hosted services
+                    self.ws.run_forever(
+                        ping_interval=60,
+                        ping_timeout=30,
+                        ping_payload="ping"
+                    )
                 except Exception as e:
                     logger.error(f"❌ WebSocket run_forever error: {e}")
+                    if self.running and self.reconnect_attempts < self.max_reconnect_attempts:
+                        self.reconnect_attempts += 1
+                        logger.info(f"🔄 Attempting reconnection {self.reconnect_attempts}/{self.max_reconnect_attempts}")
+                        time.sleep(5)  # Wait before reconnecting
+                        self.connect(session_id)  # Recursive reconnection
             
             self.connection_thread = threading.Thread(target=run_ws, daemon=True)
             self.connection_thread.start()
@@ -293,6 +312,7 @@ class WebSocketClient:
     
     def on_open(self, ws):
         self.connected = True
+        self.reconnect_attempts = 0  # Reset reconnection counter on successful connection
         logger.info("✅ WebSocket connected successfully")
         self.message_queue.put({"type": "ws_connected", "message": "WebSocket connected"})
         
@@ -342,9 +362,15 @@ class WebSocketClient:
     
     def on_close(self, ws, close_status_code, close_msg):
         self.connected = False
-        self.running = False
         logger.info(f"🔌 WebSocket closed: {close_status_code} - {close_msg}")
         self.message_queue.put({"type": "disconnected", "code": close_status_code, "message": close_msg})
+        
+        # Attempt reconnection if we're still supposed to be running
+        if self.running and self.reconnect_attempts < self.max_reconnect_attempts:
+            self.reconnect_attempts += 1
+            logger.info(f"🔄 Attempting reconnection {self.reconnect_attempts}/{self.max_reconnect_attempts}")
+            time.sleep(3)
+            self.connect(self.session_id)
 
     def disconnect(self):
         self.running = False
@@ -358,7 +384,7 @@ class WebSocketClient:
 def generate_qr_session():
     try:
         logger.info("🎯 Generating QR session...")
-        response = requests.post(f"{API_BASE_URL}/qr/generate", json={})
+        response = requests.post(f"{API_BASE_URL}/qr/generate", json={}, timeout=10)
         if response.status_code == 200:
             data = response.json()
             logger.info(f"✅ QR session generated: {data['session_id']}")
@@ -373,7 +399,7 @@ def generate_qr_session():
 def get_user_devices(token):
     try:
         headers = {"Authorization": f"Bearer {token}"}
-        response = requests.get(f"{API_BASE_URL}/devices", headers=headers)
+        response = requests.get(f"{API_BASE_URL}/devices", headers=headers, timeout=10)
         if response.status_code == 200:
             return response.json()
         return []
@@ -383,7 +409,7 @@ def get_user_devices(token):
 def revoke_device(token, device_id):
     try:
         headers = {"Authorization": f"Bearer {token}"}
-        response = requests.delete(f"{API_BASE_URL}/devices/{device_id}", headers=headers)
+        response = requests.delete(f"{API_BASE_URL}/devices/{device_id}", headers=headers, timeout=10)
         return response.status_code == 200
     except:
         return False
@@ -411,6 +437,10 @@ def render_qr_login_page():
     
     with col2:
         if st.button("🔄 Generate New QR Code", use_container_width=True):
+            # Properly disconnect existing WebSocket
+            if hasattr(st.session_state, 'ws_client') and st.session_state.ws_client:
+                st.session_state.ws_client.disconnect()
+            
             # Clear existing data
             for key in ['qr_data', 'ws_client', 'message_queue', 'login_success', 'user_data', 'session_token', 'ws_connected', 'ws_confirmed']:
                 if key in st.session_state:
@@ -431,15 +461,19 @@ def render_qr_login_page():
                 st.session_state.ws_connected = False
                 st.session_state.ws_confirmed = False
                 
-                # Initialize WebSocket connection
+                # Initialize WebSocket connection with improved error handling
                 logger.info("🔌 Initializing WebSocket connection...")
-                ws_client = WebSocketClient(st.session_state.message_queue)
-                ws_client.connect(qr_data['session_id'])
-                st.session_state.ws_client = ws_client
-                
-                # Wait a moment for connection
-                time.sleep(1)
-                st.rerun()
+                try:
+                    ws_client = WebSocketClient(st.session_state.message_queue)
+                    ws_client.connect(qr_data['session_id'])
+                    st.session_state.ws_client = ws_client
+                    
+                    # Wait a moment for connection
+                    time.sleep(2)
+                    st.rerun()
+                except Exception as ws_error:
+                    logger.error(f"❌ WebSocket initialization error: {ws_error}")
+                    st.error(f"❌ WebSocket connection failed: {ws_error}")
             else:
                 st.error("❌ Failed to generate QR code. Please check your server connection.")
                 return
@@ -484,6 +518,8 @@ def render_qr_login_page():
                     
                     # Show success message and redirect
                     st.success("🎉 Login successful! Redirecting to dashboard...")
+                    if hasattr(st.session_state, 'ws_client') and st.session_state.ws_client:
+                        st.session_state.ws_client.disconnect()
                     time.sleep(2)
                     st.rerun()
                     
@@ -500,7 +536,7 @@ def render_qr_login_page():
                     
                 elif message_type == 'disconnected':
                     st.session_state.ws_connected = False
-                    st.warning("🔌 WebSocket disconnected. Attempting to reconnect...")
+                    st.warning("🔌 WebSocket disconnected. Reconnecting...")
                     
         except queue.Empty:
             pass
@@ -533,8 +569,8 @@ def render_qr_login_page():
             </div>
             """, unsafe_allow_html=True)
             
-            # Auto-refresh every 2 seconds (faster for better UX)
-            time.sleep(2)
+            # Auto-refresh every 3 seconds for better stability
+            time.sleep(3)
             st.rerun()
         else:
             st.markdown("""
@@ -658,6 +694,10 @@ def render_dashboard():
     
     with col2:
         if st.button("📱 Link New Device", use_container_width=True):
+            # Disconnect existing WebSocket
+            if hasattr(st.session_state, 'ws_client') and st.session_state.ws_client:
+                st.session_state.ws_client.disconnect()
+            
             # Reset to QR generation
             for key in ['qr_data', 'ws_client', 'message_queue', 'login_success', 'user_data', 'session_token', 'ws_connected', 'ws_confirmed']:
                 if key in st.session_state:
@@ -694,7 +734,7 @@ def main():
     # Render header
     render_header()
     
-    # Debug info - enhanced for better troubleshooting
+    # Debug info - enabled temporarily for troubleshooting
     # if st.checkbox("🔍 Debug Info", value=False):
     #     st.write("**Session State:**")
     #     debug_state = {}
@@ -703,7 +743,7 @@ def main():
     #             debug_state[key] = f"Queue with {value.qsize()} messages" if hasattr(value, 'qsize') else "Queue object"
     #         elif key == 'ws_client':
     #             if hasattr(value, 'connected'):
-    #                 debug_state[key] = f"WebSocket client (connected: {value.connected})"
+    #                 debug_state[key] = f"WebSocket client (connected: {value.connected}, attempts: {getattr(value, 'reconnect_attempts', 0)})"
     #             else:
     #                 debug_state[key] = "WebSocket client object"
     #         else:
@@ -718,6 +758,8 @@ def main():
     #         st.write(f"- Connected: {ws.connected}")
     #         st.write(f"- Running: {ws.running}")
     #         st.write(f"- Session ID: {ws.session_id}")
+    #         st.write(f"- Reconnect Attempts: {ws.reconnect_attempts}")
+    #         st.write(f"- WebSocket URL: {WS_BASE_URL}/ws/{ws.session_id if ws.session_id else 'none'}")
     
     # Check login status
     if st.session_state.login_success and 'user_data' in st.session_state and st.session_state.user_data:
