@@ -24,195 +24,376 @@ def load_custom_css():
     st.markdown("""
     <style>
     /* Import Google Fonts */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
     
     /* Global Styles */
     .main {
         font-family: 'Inter', sans-serif;
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        min-height: 100vh;
     }
+    
+    /* Hide Streamlit elements */
+    .stDeployButton {display: none;}
+    header[data-testid="stHeader"] {display: none;}
+    .stMainBlockContainer {padding-top: 2rem;}
     
     /* Header Styles */
-    .app-header {
+    .main-header {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 2rem;
-        border-radius: 15px;
-        margin-bottom: 2rem;
+        padding: 3rem 2rem;
+        border-radius: 20px;
+        margin-bottom: 3rem;
         text-align: center;
         color: white;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        box-shadow: 0 20px 40px rgba(102, 126, 234, 0.3);
+        position: relative;
+        overflow: hidden;
     }
     
-    .app-title {
-        font-size: 2.5rem;
+    .main-header::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+        animation: float 6s ease-in-out infinite;
+    }
+    
+    @keyframes float {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-20px); }
+    }
+    
+    .main-title {
+        font-size: 3.5rem;
         font-weight: 700;
-        margin-bottom: 0.5rem;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 1rem;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        position: relative;
+        z-index: 1;
     }
     
-    .app-subtitle {
-        font-size: 1.2rem;
+    .main-subtitle {
+        font-size: 1.3rem;
         font-weight: 300;
-        opacity: 0.9;
+        opacity: 0.95;
+        position: relative;
+        z-index: 1;
     }
     
-    /* QR Code Container */
-    .qr-container {
+    /* QR Code Section */
+    .qr-section {
         background: white;
-        border-radius: 20px;
-        padding: 2rem;
+        border-radius: 24px;
+        padding: 3rem;
         text-align: center;
-        box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+        box-shadow: 0 25px 50px rgba(0,0,0,0.1);
         border: 1px solid #f0f0f0;
         margin: 2rem 0;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .qr-section::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
     }
     
     .qr-title {
-        font-size: 1.5rem;
+        font-size: 2rem;
         font-weight: 600;
-        color: #333;
+        color: white;
         margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
     }
     
-    .qr-instruction {
-        color: #666;
-        font-size: 1rem;
-        margin-bottom: 1.5rem;
+    .qr-description {
+        color: #7f8c8d;
+        font-size: 1.1rem;
+        margin-bottom: 2rem;
         line-height: 1.6;
+        max-width: 500px;
+        margin-left: auto;
+        margin-right: auto;
     }
     
-    .qr-code-wrapper {
+    .qr-container {
         display: inline-block;
-        padding: 1rem;
-        background: #f8f9fa;
-        border-radius: 15px;
-        border: 2px dashed #dee2e6;
-        margin: 1rem 0;
+        padding: 2rem;
+        background: linear-gradient(145deg, #f8f9fa, #e9ecef);
+        border-radius: 20px;
+        box-shadow: 
+            inset 5px 5px 10px #d1d5db,
+            inset -5px -5px 10px #ffffff,
+            0 10px 30px rgba(0,0,0,0.1);
+        margin: 2rem 0;
+        transition: transform 0.3s ease;
     }
     
-    /* Status Messages */
+    .qr-container:hover {
+        transform: translateY(-5px);
+    }
+    
+    /* Status Cards */
+    .status-card {
+        border-radius: 16px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+        text-align: center;
+        font-weight: 500;
+        font-size: 1.1rem;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        transition: transform 0.3s ease;
+    }
+    
+    .status-card:hover {
+        transform: translateY(-2px);
+    }
+    
     .status-waiting {
         background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
-        padding: 1rem;
-        border-radius: 10px;
-        text-align: center;
         color: #8b4513;
-        font-weight: 500;
-        margin: 1rem 0;
+        border-left: 4px solid #ff9500;
     }
     
     .status-success {
         background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
-        padding: 1rem;
-        border-radius: 10px;
-        text-align: center;
         color: #155724;
-        font-weight: 500;
-        margin: 1rem 0;
+        border-left: 4px solid #28a745;
     }
     
     .status-error {
         background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
-        padding: 1rem;
-        border-radius: 10px;
-        text-align: center;
         color: #721c24;
-        font-weight: 500;
-        margin: 1rem 0;
+        border-left: 4px solid #dc3545;
     }
     
     /* Dashboard Styles */
-    .dashboard-container {
+    .dashboard-card {
         background: white;
-        border-radius: 15px;
+        border-radius: 20px;
         padding: 2rem;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-        margin: 1rem 0;
+        box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+        margin: 1.5rem 0;
+        border: 1px solid #f0f0f0;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
     }
     
-    .welcome-card {
+    /*.dashboard-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+    }*/
+    
+    .welcome-section {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
-        padding: 2rem;
-        border-radius: 15px;
+        padding: 3rem;
+        border-radius: 20px;
         margin-bottom: 2rem;
         text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .welcome-section::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+        animation: float 8s ease-in-out infinite reverse;
     }
     
     .welcome-title {
-        font-size: 2rem;
+        font-size: 2.5rem;
         font-weight: 600;
         margin-bottom: 0.5rem;
+        position: relative;
+        z-index: 1;
     }
     
     .welcome-subtitle {
-        font-size: 1rem;
+        font-size: 1.2rem;
         opacity: 0.9;
+        position: relative;
+        z-index: 1;
     }
     
-    .stats-card {
-        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.5rem;
+        margin: 2rem 0;
+    }
+    
+    .stat-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
-        padding: 1.5rem;
-        border-radius: 12px;
+        padding: 2rem;
+        border-radius: 16px;
         text-align: center;
-        margin: 0.5rem 0;
+        box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        position: relative;
+        overflow: hidden;
     }
     
-    .stats-number {
-        font-size: 2rem;
+    .stat-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 15px 40px rgba(102, 126, 234, 0.4);
+    }
+    
+    .stat-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+        animation: shimmer 3s infinite;
+    }
+    
+    @keyframes shimmer {
+        0% { left: -100%; }
+        100% { left: 100%; }
+    }
+    
+    .stat-number {
+        font-size: 2.5rem;
         font-weight: 700;
         margin-bottom: 0.5rem;
+        position: relative;
+        z-index: 1;
     }
     
-    .stats-label {
-        font-size: 0.9rem;
+    .stat-label {
+        font-size: 1rem;
         opacity: 0.9;
+        position: relative;
+        z-index: 1;
     }
     
-    .device-card {
-        background: white;
-        border: 1px solid #e9ecef;
+    /*.info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1rem;
+        margin: 1.5rem 0;
+    }*/
+    
+    .info-card {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border: 2px solid #dee2e6;
         border-radius: 12px;
         padding: 1.5rem;
-        margin: 1rem 0;
-        box-shadow: 0 5px 15px rgba(0,0,0,0.08);
-        transition: transform 0.2s ease;
+        transition: all 0.3s ease;
+        position: relative;
     }
     
-    .device-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    .info-card:hover {
+        border-color: #667eea;
+        transform: translateY(-3px);
+        box-shadow: 0 10px 30px rgba(102, 126, 234, 0.2);
     }
     
-    .device-name {
-        font-size: 1.2rem;
-        font-weight: 600;
-        color: #333;
+    .info-label {
+        font-size: 0.9rem;
+        color: #6c757d;
+        font-weight: 500;
         margin-bottom: 0.5rem;
+    }
+    
+    .info-value {
+        font-size: 1.1rem;
+        color: #2c3e50;
+        font-weight: 600;
+        font-family: 'JetBrains Mono', monospace;
+    }
+    
+    .device-list {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+    
+    .device-item {
+        background: white;
+        border: 2px solid #e9ecef;
+        border-radius: 16px;
+        padding: 1.5rem;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    
+    .device-item:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+        border-color: #667eea;
     }
     
     .device-info {
-        color: #666;
-        font-size: 0.9rem;
+        flex: 1;
+    }
+    
+    .device-name {
+        font-size: 1.3rem;
+        font-weight: 600;
+        color: #2c3e50;
         margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .device-details {
+        color: #7f8c8d;
+        font-size: 0.9rem;
+        margin-bottom: 0.3rem;
     }
     
     .device-status {
         display: inline-block;
-        padding: 0.3rem 0.8rem;
+        padding: 0.4rem 1rem;
         border-radius: 20px;
         font-size: 0.8rem;
-        font-weight: 500;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
     }
     
     .status-active {
-        background: #d4edda;
+        background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
         color: #155724;
+        border: 1px solid #c3e6cb;
     }
     
     .status-inactive {
-        background: #f8d7da;
+        background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
         color: #721c24;
+        border: 1px solid #f5c6cb;
+    }
+    
+    .device-actions {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
     }
     
     /* Button Styles */
@@ -220,34 +401,180 @@ def load_custom_css():
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
         border: none;
-        border-radius: 10px;
-        padding: 0.7rem 2rem;
+        border-radius: 12px;
+        padding: 0.8rem 1.5rem;
         font-weight: 600;
         font-size: 1rem;
         transition: all 0.3s ease;
         box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        cursor: pointer;
     }
     
     .stButton > button:hover {
         transform: translateY(-2px);
-        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
+    }
+    
+    .stButton > button:active {
+        transform: translateY(0);
+        box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+    }
+    
+    /* Action Button Variants */
+    /*.action-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin: 2rem 0;
+    }*/
+    
+    .action-button {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border: 2px solid #dee2e6;
+        border-radius: 12px;
+        padding: 1.5rem;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        color: #495057;
+    }
+    
+    .action-button:hover {
+        border-color: #667eea;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        transform: translateY(-5px);
+        box-shadow: 0 15px 35px rgba(102, 126, 234, 0.3);
+    }
+    
+    .action-icon {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+        display: block;
+    }
+    
+    .action-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 0.3rem;
+    }
+    
+    .action-desc {
+        font-size: 0.9rem;
+        opacity: 0.8;
     }
     
     /* Loading Animation */
     .loading-spinner {
         display: inline-block;
-        width: 20px;
-        height: 20px;
-        border: 3px solid #f3f3f3;
+        width: 24px;
+        height: 24px;
+        border: 3px solid rgba(102, 126, 234, 0.3);
         border-top: 3px solid #667eea;
         border-radius: 50%;
         animation: spin 1s linear infinite;
         margin-right: 10px;
+        vertical-align: middle;
     }
     
     @keyframes spin {
         0% { transform: rotate(0deg); }
         100% { transform: rotate(360deg); }
+    }
+    
+    /* Pulse Animation */
+    .pulse {
+        animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.5; }
+        100% { opacity: 1; }
+    }
+    
+    /* Section Headers */
+    .section-header {
+        font-size: 1.8rem;
+        font-weight: 600;
+        color: #2c3e50;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 3px solid #667eea;
+        display: inline-block;
+    }
+    
+    /* Empty State */
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: #7f8c8d;
+    }
+    
+    .empty-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+    
+    .empty-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+    }
+    
+    .empty-desc {
+        font-size: 1rem;
+        margin-bottom: 2rem;
+    }
+    
+    /* Responsive Design */
+    @media (max-width: 768px) {
+        .main-header {
+            padding: 2rem 1rem;
+        }
+        
+        .main-title {
+            font-size: 2.5rem;
+        }
+        
+        .qr-section {
+            padding: 2rem 1rem;
+        }
+        
+        .dashboard-card {
+            padding: 1.5rem;
+        }
+        
+        .stats-grid {
+            grid-template-columns: 1fr;
+        }
+        
+        .device-item {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+        
+        .device-actions {
+            width: 100%;
+            justify-content: flex-end;
+        }
+    }
+    
+    /* Dark mode friendly adjustments */
+    @media (prefers-color-scheme: dark) {
+        .main {
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d3748 100%);
+        }
+        
+        .dashboard-card, .qr-section {
+            background: #2d3748;
+            border-color: #4a5568;
+            color: #e2e8f0;
+        }
     }
     </style>
     """, unsafe_allow_html=True)
@@ -417,26 +744,29 @@ def revoke_device(token, device_id):
 # UI Components
 def render_header():
     st.markdown("""
-    <div class="app-header">
-        <div class="app-title">🔐 SecureLink</div>
-        <div class="app-subtitle">Secure QR Code Device Authentication</div>
+    <div class="main-header">
+        <div class="main-title">🔐 SecureLink</div>
+        <div class="main-subtitle">QR code device authentication</div>
     </div>
     """, unsafe_allow_html=True)
 
 def render_qr_login_page():
     st.markdown("""
-    <div class="qr-container">
-        <div class="qr-title">📱 Link Your Device</div>
-        <div class="qr-instruction">
-            Open your mobile app and scan the QR code below to securely link your device
+    <div class="qr-section">
+        <div class="qr-title">
+            📱 Connect Your Device
+        </div>
+        <div class="qr-description">
+            Scan the QR code below with your mobile device to establish a secure connection. 
+            Your device will be authenticated instantly without passwords.
         </div>
     </div>
     """, unsafe_allow_html=True)
     
+    # Generate New QR Code Button
     col1, col2, col3 = st.columns([1, 2, 1])
-    
     with col2:
-        if st.button("🔄 Generate New QR Code", use_container_width=True):
+        if st.button("🔄 Generate New QR Code", use_container_width=True, help="Generate a fresh QR code"):
             # Properly disconnect existing WebSocket
             if hasattr(st.session_state, 'ws_client') and st.session_state.ws_client:
                 st.session_state.ws_client.disconnect()
@@ -453,7 +783,7 @@ def render_qr_login_page():
     
     # Generate QR code if not exists
     if 'qr_data' not in st.session_state or st.session_state.qr_data is None:
-        with st.spinner("Generating secure QR code..."):
+        with st.spinner("🔄 Generating secure QR code..."):
             qr_data = generate_qr_session()
             if qr_data:
                 st.session_state.qr_data = qr_data
@@ -481,16 +811,16 @@ def render_qr_login_page():
     if 'qr_data' in st.session_state and st.session_state.qr_data:
         qr_data = st.session_state.qr_data
         
-        # Display QR Code
+        # Display QR Code in beautiful container
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
-            st.markdown('<div class="qr-code-wrapper">', unsafe_allow_html=True)
+            st.markdown('<div class="qr-container">', unsafe_allow_html=True)
             
             # Decode base64 QR code
             try:
                 qr_image_data = base64.b64decode(qr_data['qr_code_data'])
                 qr_image = Image.open(io.BytesIO(qr_image_data))
-                st.image(qr_image, width=300)
+                st.image(qr_image, width=300, caption="Scan with your mobile device")
             except Exception as e:
                 st.error(f"❌ Error displaying QR code: {e}")
                 return
@@ -517,7 +847,7 @@ def render_qr_login_page():
                     st.session_state.device_id = message.get('device_id')
                     
                     # Show success message and redirect
-                    st.success("🎉 Login successful! Redirecting to dashboard...")
+                    st.success("🎉 Authentication successful! Redirecting to dashboard...")
                     if hasattr(st.session_state, 'ws_client') and st.session_state.ws_client:
                         st.session_state.ws_client.disconnect()
                     time.sleep(2)
@@ -532,18 +862,18 @@ def render_qr_login_page():
                     logger.info("🔌 WebSocket connection confirmed")
                     
                 elif message_type == 'error':
-                    st.error(f"❌ WebSocket Error: {message.get('message')}")
+                    st.error(f"❌ Connection Error: {message.get('message')}")
                     
                 elif message_type == 'disconnected':
                     st.session_state.ws_connected = False
-                    st.warning("🔌 WebSocket disconnected. Reconnecting...")
+                    st.warning("🔌 Connection interrupted. Attempting to reconnect...")
                     
         except queue.Empty:
             pass
         except Exception as e:
             logger.error(f"❌ Error processing messages: {e}")
         
-        # Display status
+        # Display status with improved UI
         expires_at = datetime.fromisoformat(qr_data['expires_at'])
         time_left = expires_at - datetime.utcnow()
         
@@ -552,20 +882,30 @@ def render_qr_login_page():
             seconds_left = int(time_left.total_seconds() % 60)
             
             # Enhanced WebSocket status
-            ws_status = "❌ Disconnected"
             if st.session_state.get('ws_connected', False):
                 if st.session_state.get('ws_confirmed', False):
-                    ws_status = "✅ Connected & Ready"
+                    status_icon = "✅"
+                    status_text = "Connected & Ready"
+                    status_class = "status-success"
                 else:
-                    ws_status = "🔄 Connected (Confirming...)"
+                    status_icon = "🔄"
+                    status_text = "Connected (Confirming...)"
+                    status_class = "status-waiting"
             elif hasattr(st.session_state, 'ws_client'):
-                ws_status = "🔄 Connecting..."
+                status_icon = "🔄"
+                status_text = "Connecting..."
+                status_class = "status-waiting"
+            else:
+                status_icon = "❌"
+                status_text = "Disconnected"
+                status_class = "status-error"
             
             st.markdown(f"""
-            <div class="status-waiting">
-                <div class="loading-spinner"></div>
-                Waiting for mobile scan... ({ws_status}) <br>
-                Expires in {minutes_left}m {seconds_left}s
+            <div class="status-card {status_class}">
+                <div class="loading-spinner pulse"></div>
+                <strong>{status_icon} {status_text}</strong><br>
+                Waiting for device authentication...<br>
+                <small>⏱️ Expires in {minutes_left}m {seconds_left}s</small>
             </div>
             """, unsafe_allow_html=True)
             
@@ -574,8 +914,9 @@ def render_qr_login_page():
             st.rerun()
         else:
             st.markdown("""
-            <div class="status-error">
-                ⏰ QR Code has expired. Please generate a new one.
+            <div class="status-card status-error">
+                <strong>⏰ QR Code Expired</strong><br>
+                This QR code has expired for security. Please generate a new one.
             </div>
             """, unsafe_allow_html=True)
 
@@ -585,115 +926,165 @@ def render_dashboard():
     
     logger.info(f"🎯 Rendering dashboard for user: {user_data}")
     
-    # Welcome Card
+    # Welcome Section
     st.markdown(f"""
-    <div class="welcome-card">
+    <div class="welcome-section">
         <div class="welcome-title">Welcome back, {user_data['username']}! 👋</div>
-        <div class="welcome-subtitle">Your device has been successfully linked</div>
+        <div class="welcome-subtitle">Your secure authentication session is active</div>
     </div>
     """, unsafe_allow_html=True)
     
-    # Stats Row
-    col1, col2, col3 = st.columns(3)
-    
-    # Get user devices
+    # Get user devices for stats
     devices = get_user_devices(session_token)
     active_devices = [d for d in devices if d['is_active']]
+    login_time = datetime.now().strftime("%H:%M")
+    
+    # Stats Section
+    st.markdown("""
+    <div class="stats-grid">
+    </div>
+    """, unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns(3)
     
     with col1:
         st.markdown(f"""
-        <div class="stats-card">
-            <div class="stats-number">{len(active_devices)}</div>
-            <div class="stats-label">Active Devices</div>
+        <div class="stat-card">
+            <div class="stat-number">{len(active_devices)}</div>
+            <div class="stat-label">📱 Active Devices</div>
         </div>
         """, unsafe_allow_html=True)
     
     with col2:
-        login_time = datetime.now().strftime("%H:%M")
         st.markdown(f"""
-        <div class="stats-card">
-            <div class="stats-number">{login_time}</div>
-            <div class="stats-label">Login Time</div>
+        <div class="stat-card">
+            <div class="stat-number">{login_time}</div>
+            <div class="stat-label">🕒 Login Time</div>
         </div>
         """, unsafe_allow_html=True)
     
     with col3:
         st.markdown(f"""
-        <div class="stats-card">
-            <div class="stats-number">✓</div>
-            <div class="stats-label">Secure Connection</div>
+        <div class="stat-card">
+            <div class="stat-number">🛡️</div>
+            <div class="stat-label">✅ Secure</div>
         </div>
         """, unsafe_allow_html=True)
     
-    # User Information
+    # User Information Section
     st.markdown("""
-    <div class="dashboard-container">
-        <h3>👤 User Information</h3>
+    <div class="dashboard-card">
+        <h3 class="section-header">👤 User Information</h3>
+        <div class="info-grid">
+        </div>
     </div>
     """, unsafe_allow_html=True)
     
     col1, col2 = st.columns(2)
     with col1:
-        st.info(f"**Username:** {user_data['username']}")
-        st.info(f"**Email:** {user_data['email']}")
-    with col2:
-        st.info(f"**User ID:** {user_data['id']}")
-        st.info(f"**Status:** Active ✅")
+        st.markdown(f"""
+        <div class="info-card">
+            <div class="info-label">Username</div>
+            <div class="info-value">{user_data['username']}</div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.write("")
+        st.markdown(f"""
+        <div class="info-card">
+            <div class="info-label">User ID</div>
+            <div class="info-value">{user_data['id']}</div>
+        </div>
+        """, unsafe_allow_html=True)
     
-    # Linked Devices
+    with col2:
+        st.markdown(f"""
+        <div class="info-card">
+            <div class="info-label">Email Address</div>
+            <div class="info-value">{user_data['email']}</div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.write("")
+        st.markdown(f"""
+        <div class="info-card">
+            <div class="info-label">Account Status</div>
+            <div class="info-value">✅ Active</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Linked Devices Section
     st.markdown("""
-    <div class="dashboard-container">
-        <h3>📱 Linked Devices</h3>
+    <div class="dashboard-card">
+        <h3 class="section-header">📱 Linked Devices</h3>
     </div>
     """, unsafe_allow_html=True)
     
     if devices:
         for device in devices:
+            st.write("")
             status_class = "status-active" if device['is_active'] else "status-inactive"
             status_text = "Active" if device['is_active'] else "Inactive"
             status_icon = "🟢" if device['is_active'] else "🔴"
             
-            created_date = datetime.fromisoformat(device['created_at']).strftime("%B %d, %Y at %H:%M")
-            last_active = datetime.fromisoformat(device['last_active']).strftime("%B %d, %Y at %H:%M")
+            created_date = datetime.fromisoformat(device['created_at']).strftime("%b %d, %Y at %H:%M")
+            last_active = datetime.fromisoformat(device['last_active']).strftime("%b %d, %Y at %H:%M")
             
-            col1, col2 = st.columns([3, 1])
+            # Create device item
+            col1, col2 = st.columns([4, 1])
             
             with col1:
                 st.markdown(f"""
-                <div class="device-card">
-                    <div class="device-name">{device['device_name']} {status_icon}</div>
-                    <div class="device-info">Created: {created_date}</div>
-                    <div class="device-info">Last Active: {last_active}</div>
-                    <span class="device-status {status_class}">{status_text}</span>
+                <div class="device-item">
+                    <div class="device-info">
+                        <div class="device-name">
+                            {status_icon} {device['device_name']}
+                        </div>
+                        <div class="device-details">📅 Created: {created_date}</div>
+                        <div class="device-details">🕒 Last Active: {last_active}</div>
+                        <div class="device-status {status_class}">{status_text}</div>
+                    </div>
                 </div>
                 """, unsafe_allow_html=True)
             
             with col2:
                 if device['is_active']:
-                    if st.button(f"🗑️ Revoke", key=f"revoke_{device['id']}", help="Revoke device access"):
-                        if revoke_device(session_token, device['device_id']):
-                            st.success("Device revoked successfully!")
-                            st.rerun()
-                        else:
-                            st.error("Failed to revoke device")
+                    if st.button(f"🗑️ Revoke", key=f"revoke_{device['id']}", help="Revoke device access", use_container_width=True):
+                        with st.spinner("Revoking device..."):
+                            if revoke_device(session_token, device['device_id']):
+                                st.success("✅ Device revoked successfully!")
+                                time.sleep(1)
+                                st.rerun()
+                            else:
+                                st.error("❌ Failed to revoke device")
     else:
-        st.warning("No linked devices found.")
+        st.markdown("""
+        <div class="empty-state">
+            <div class="empty-icon">📱</div>
+            <div class="empty-title">No Linked Devices</div>
+            <div class="empty-desc">You haven't linked any devices yet. Scan a QR code to get started!</div>
+        </div>
+        """, unsafe_allow_html=True)
     
-    # Actions
+    # Quick Actions Section
     st.markdown("""
-    <div class="dashboard-container">
-        <h3>⚡ Quick Actions</h3>
+    <div class="dashboard-card">
+        <h3 class="section-header">⚡ Quick Actions</h3>
+        <div class="action-grid">
+        </div>
     </div>
     """, unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        if st.button("🔄 Refresh Devices", use_container_width=True):
-            st.rerun()
+        if st.button("🔄 Refresh Data", use_container_width=True, help="Refresh device list and user data"):
+            with st.spinner("Refreshing..."):
+                time.sleep(1)
+                st.rerun()
     
     with col2:
-        if st.button("📱 Link New Device", use_container_width=True):
+        if st.button("📱 Link New Device", use_container_width=True, help="Generate new QR code to link another device"):
             # Disconnect existing WebSocket
             if hasattr(st.session_state, 'ws_client') and st.session_state.ws_client:
                 st.session_state.ws_client.disconnect()
@@ -705,15 +1096,19 @@ def render_dashboard():
             st.rerun()
     
     with col3:
-        if st.button("🚪 Logout", use_container_width=True):
+        if st.button("🚪 Sign Out", use_container_width=True, help="Sign out and clear session", type="secondary"):
             # Disconnect WebSocket
             if hasattr(st.session_state, 'ws_client') and st.session_state.ws_client:
                 st.session_state.ws_client.disconnect()
             
-            # Clear session
-            for key in list(st.session_state.keys()):
-                del st.session_state[key]
-            st.rerun()
+            # Clear session with confirmation
+            with st.spinner("Signing out..."):
+                time.sleep(1)
+                for key in list(st.session_state.keys()):
+                    del st.session_state[key]
+                st.success("✅ Signed out successfully!")
+                time.sleep(1)
+                st.rerun()
 
 # Main App
 def main():
@@ -734,38 +1129,23 @@ def main():
     # Render header
     render_header()
     
-    # Debug info - enabled temporarily for troubleshooting
-    # if st.checkbox("🔍 Debug Info", value=False):
-    #     st.write("**Session State:**")
-    #     debug_state = {}
-    #     for key, value in st.session_state.items():
-    #         if key == 'message_queue':
-    #             debug_state[key] = f"Queue with {value.qsize()} messages" if hasattr(value, 'qsize') else "Queue object"
-    #         elif key == 'ws_client':
-    #             if hasattr(value, 'connected'):
-    #                 debug_state[key] = f"WebSocket client (connected: {value.connected}, attempts: {getattr(value, 'reconnect_attempts', 0)})"
-    #             else:
-    #                 debug_state[key] = "WebSocket client object"
-    #         else:
-    #             debug_state[key] = value
-        
-    #     st.json(debug_state)
-        
-    #     # WebSocket diagnostics
-    #     if hasattr(st.session_state, 'ws_client'):
-    #         st.write("**WebSocket Status:**")
-    #         ws = st.session_state.ws_client
-    #         st.write(f"- Connected: {ws.connected}")
-    #         st.write(f"- Running: {ws.running}")
-    #         st.write(f"- Session ID: {ws.session_id}")
-    #         st.write(f"- Reconnect Attempts: {ws.reconnect_attempts}")
-    #         st.write(f"- WebSocket URL: {WS_BASE_URL}/ws/{ws.session_id if ws.session_id else 'none'}")
+    # Add some spacing
+    st.markdown("<br>", unsafe_allow_html=True)
     
-    # Check login status
+    # Check login status and render appropriate page
     if st.session_state.login_success and 'user_data' in st.session_state and st.session_state.user_data:
         render_dashboard()
     else:
         render_qr_login_page()
+    
+    # Footer
+    st.markdown("""
+    <div style="text-align: center; padding: 2rem; color: #7f8c8d; font-size: 0.9rem; margin-top: 3rem;">
+        <hr style="border: none; height: 1px; background: linear-gradient(90deg, transparent, #dee2e6, transparent); margin: 2rem 0;">
+        🔐 SecureLink - Secure QR Code Authentication System<br>
+        <small>• Protected by end-to-end encryption •</small>
+    </div>
+    """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
