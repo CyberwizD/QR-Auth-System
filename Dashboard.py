@@ -4,7 +4,7 @@ import websocket
 import json
 import threading
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import base64
 from PIL import Image
 import io
@@ -585,19 +585,20 @@ class WebSocketClient:
         self.ws = None
         self.connected = False
         self.session_id = None
+        self.token = None
         self.message_queue = message_queue
         self.running = False
         self.connection_thread = None
         self.reconnect_attempts = 0
         self.max_reconnect_attempts = 5
-        
-    def connect(self, session_id):
+
+    def connect_for_login(self, session_id):
         try:
             self.session_id = session_id
             self.running = True
             self.reconnect_attempts = 0
-            ws_url = f"{WS_BASE_URL}/ws/{session_id}"
-            logger.info(f"🔌 Connecting to WebSocket: {ws_url}")
+            ws_url = f"{WS_BASE_URL}/ws/login/{session_id}"
+            logger.info(f"🔌 Connecting to login WebSocket: {ws_url}")
             
             # Add headers for better compatibility with hosted services
             headers = {
@@ -636,6 +637,33 @@ class WebSocketClient:
         except Exception as e:
             logger.error(f"❌ WebSocket connection error: {str(e)}")
             self.message_queue.put({"type": "error", "message": str(e)})
+
+    def connect_for_user(self, token):
+        """Connect to WebSocket for authenticated user"""
+        try:
+            self.token = token
+            self.running = True
+            self.reconnect_attempts = 0
+            ws_url = f"{WS_BASE_URL}/ws/listen?token={token}"
+            logger.info(f"🔌 Connecting to user WebSocket: {ws_url}")
+
+            self.ws = websocket.WebSocketApp(
+                ws_url,
+                on_message=self.on_message,
+                on_error=self.on_error,
+                on_close=self.on_close,
+                on_open=self.on_open
+            )
+
+            def run_ws():
+                self.ws.run_forever(ping_interval=60, ping_timeout=30)
+
+            self.connection_thread = threading.Thread(target=run_ws, daemon=True)
+            self.connection_thread.start()
+
+        except Exception as e:
+            logger.error(f"❌ WebSocket connection error: {str(e)}")
+            self.message_queue.put({"type": "error", "message": str(e)})
     
     def on_open(self, ws):
         self.connected = True
@@ -670,6 +698,13 @@ class WebSocketClient:
                         "session_token": data.get('session_token'),
                         "device_id": data.get('device_id')
                     })
+                elif data.get('type') == 'profile_updated':
+                    logger.info("🎉 Profile updated message received!")
+                    self.message_queue.put({
+                        "type": "profile_updated",
+                        "user_data": data.get('user'),
+                        "session_token": data.get('access_token')
+                    })
                 elif data.get('type') == 'connected':
                     logger.info("🔌 WebSocket connection confirmed")
                     self.message_queue.put({"type": "ws_confirmed", "message": "Connection confirmed"})
@@ -697,7 +732,10 @@ class WebSocketClient:
             self.reconnect_attempts += 1
             logger.info(f"🔄 Attempting reconnection {self.reconnect_attempts}/{self.max_reconnect_attempts}")
             time.sleep(3)
-            self.connect(self.session_id)
+            if self.session_id:
+                self.connect_for_login(self.session_id)
+            elif self.token:
+                self.connect_for_user(self.token)
 
     def disconnect(self):
         self.running = False
@@ -795,7 +833,7 @@ def render_qr_login_page():
                 logger.info("🔌 Initializing WebSocket connection...")
                 try:
                     ws_client = WebSocketClient(st.session_state.message_queue)
-                    ws_client.connect(qr_data['session_id'])
+                    ws_client.connect_for_login(qr_data['session_id'])
                     st.session_state.ws_client = ws_client
                     
                     # Wait a moment for connection
@@ -874,8 +912,8 @@ def render_qr_login_page():
             logger.error(f"❌ Error processing messages: {e}")
         
         # Display status with improved UI
-        expires_at = datetime.fromisoformat(qr_data['expires_at'])
-        time_left = expires_at - datetime.utcnow()
+        expires_at = datetime.fromisoformat(qr_data['expires_at'].replace('Z', '+00:00'))
+        time_left = expires_at - datetime.now(timezone.utc)
         
         if time_left.total_seconds() > 0:
             minutes_left = int(time_left.total_seconds() // 60)
@@ -924,6 +962,23 @@ def render_dashboard():
     user_data = st.session_state.user_data
     session_token = st.session_state.session_token
     
+    # Initialize WebSocket for user updates if not connected
+    if 'ws_client' not in st.session_state or not st.session_state.ws_client.connected:
+        ws_client = WebSocketClient(st.session_state.message_queue)
+        ws_client.connect_for_user(session_token)
+        st.session_state.ws_client = ws_client
+
+    # Process WebSocket messages
+    try:
+        while not st.session_state.message_queue.empty():
+            message = st.session_state.message_queue.get_nowait()
+            if message.get('type') == 'profile_updated':
+                st.session_state.user_data = message.get('user_data')
+                st.session_state.session_token = message.get('session_token')
+                st.rerun()
+    except queue.Empty:
+        pass
+
     logger.info(f"🎯 Rendering dashboard for user: {user_data}")
     
     # Welcome Section
@@ -936,7 +991,7 @@ def render_dashboard():
     
     # Get user devices for stats
     devices = get_user_devices(session_token)
-    active_devices = [d for d in devices if d['is_active']]
+    active_devices = devices
     login_time = datetime.now().strftime("%H:%M")
     
     # Stats Section
@@ -1023,9 +1078,9 @@ def render_dashboard():
     if devices:
         for device in devices:
             st.write("")
-            status_class = "status-active" if device['is_active'] else "status-inactive"
-            status_text = "Active" if device['is_active'] else "Inactive"
-            status_icon = "🟢" if device['is_active'] else "🔴"
+            status_class = "status-active"
+            status_text = "Active"
+            status_icon = "🟢"
             
             created_date = datetime.fromisoformat(device['created_at']).strftime("%b %d, %Y at %H:%M")
             last_active = datetime.fromisoformat(device['last_active']).strftime("%b %d, %Y at %H:%M")
@@ -1048,15 +1103,14 @@ def render_dashboard():
                 """, unsafe_allow_html=True)
             
             with col2:
-                if device['is_active']:
-                    if st.button(f"🗑️ Revoke", key=f"revoke_{device['id']}", help="Revoke device access", use_container_width=True):
-                        with st.spinner("Revoking device..."):
-                            if revoke_device(session_token, device['device_id']):
-                                st.success("✅ Device revoked successfully!")
-                                time.sleep(1)
-                                st.rerun()
-                            else:
-                                st.error("❌ Failed to revoke device")
+                if st.button(f"🗑️ Revoke", key=f"revoke_{device['id']}", help="Revoke device access", use_container_width=True):
+                    with st.spinner("Revoking device..."):
+                        if revoke_device(session_token, device['device_id']):
+                            st.success("✅ Device revoked successfully!")
+                            time.sleep(1)
+                            st.rerun()
+                        else:
+                            st.error("❌ Failed to revoke device")
     else:
         st.markdown("""
         <div class="empty-state">
